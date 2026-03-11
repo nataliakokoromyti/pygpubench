@@ -6,6 +6,7 @@
 #include <nanobind/stl/string.h>
 
 #include <utility>
+#include <random>
 #include "manager.h"
 
 namespace nb = nanobind;

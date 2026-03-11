@@ -11,6 +11,8 @@
 #include <stdexcept>
 #include <system_error>
 #include <utility>
+#include <cerrno>
+#include <cstdio>
 
 constexpr std::size_t PAGE_SIZE = 4096;
 
@@ -56,7 +58,7 @@ void ObfuscatedHexDigest::allocate(std::size_t size, std::mt19937& rng) {
         throw std::runtime_error("already allocated");
     }
 
-    fill_random_hex(Page, size, rng);
+    fill_random_hex(Page, PAGE_SIZE, rng);
     const std::size_t max_offset = PAGE_SIZE - size - 1;
     std::uniform_int_distribution<std::size_t> offset_dist(0, max_offset);
     const std::size_t offset = offset_dist(rng);

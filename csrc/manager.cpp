@@ -83,12 +83,15 @@ BenchmarkParameters read_benchmark_parameters(int input_fd, void* signature_out)
 
     if (fread(signature_out, 1, 32, inp_file) != 32) {
         if (feof(inp_file)) {
+            fclose(inp_file);
             throw std::runtime_error("Unexpected EOF reading signature (got fewer than 32 bytes)");
         }
+        fclose(inp_file);
         throw std::system_error(errno, std::generic_category(), "fread failed reading signature");
     }
 
     if (fgetc(inp_file) != '\n') {
+        fclose(inp_file);
         throw std::runtime_error("Expected newline after signature");
     }
 
