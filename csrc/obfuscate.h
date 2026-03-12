@@ -22,7 +22,9 @@ public:
     void lock();
     void unlock();
 
-    void* Page = nullptr;
+    [[nodiscard]] void* page_ptr() const;
+
+    std::uintptr_t Page;
 };
 
 class ObfuscatedHexDigest : ProtectablePage {
@@ -30,20 +32,25 @@ public:
     ObfuscatedHexDigest() = default;
 
     void allocate(std::size_t size, std::mt19937& rng);
-    [[nodiscard]] std::string_view view() const;
 
-    void* data() {
-        return Loc;
-    }
+    char* data();
 
     [[nodiscard]] std::size_t size() const {
         return Len;
     }
 private:
-    char* Loc = nullptr;
     std::size_t Len = 0;
+    std::size_t Offset = 0;
 };
 
 void fill_random_hex(void* target, std::size_t size, std::mt19937& rng);
+
+std::uintptr_t slow_hash(std::uintptr_t p, int rounds = 100'000);
+std::uintptr_t slow_unhash(std::uintptr_t p, int rounds = 100'000);
+
+template<class T>
+std::uintptr_t slow_hash(T* ptr, int rounds = 100'000) {
+    return slow_hash(reinterpret_cast<std::uintptr_t>(ptr), rounds);
+}
 
 #endif //PYGPUBENCH_OBFUSCATE_H
