@@ -53,4 +53,44 @@ std::uintptr_t slow_hash(T* ptr, int rounds = 100'000) {
     return slow_hash(reinterpret_cast<std::uintptr_t>(ptr), rounds);
 }
 
+template<typename T>
+struct ObfuscatedPointer {
+private:
+    std::uintptr_t Obfuscated;
+
+public:
+    // Default constructor: null pointer
+    ObfuscatedPointer() noexcept
+        : Obfuscated(slow_hash(static_cast<std::uintptr_t>(0))) {}
+
+    // Construct from raw pointer
+    explicit ObfuscatedPointer(T* ptr) noexcept
+        : Obfuscated(slow_hash(ptr)) {}
+
+    // Copy constructor
+    ObfuscatedPointer(const ObfuscatedPointer&) noexcept = default;
+
+    // Copy assignment
+    ObfuscatedPointer& operator=(const ObfuscatedPointer&) noexcept = default;
+
+    void set(T* ptr) noexcept {
+        Obfuscated = slow_hash(ptr);
+    }
+
+    // Recover the original pointer
+    T* get() const noexcept {
+        return reinterpret_cast<T*>(slow_unhash(Obfuscated));
+    }
+
+    // Dereference
+    T& operator*() const noexcept {
+        return *get();
+    }
+
+    // Arrow operator
+    T* operator->() const noexcept {
+        return get();
+    }
+};
+
 #endif //PYGPUBENCH_OBFUSCATE_H

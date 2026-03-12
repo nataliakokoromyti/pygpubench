@@ -121,7 +121,9 @@ BenchmarkManager::BenchmarkManager(int result_fd, ObfuscatedHexDigest signature,
     CUDA_CHECK(cudaDeviceGetAttribute(&mL2CacheSize, cudaDevAttrL2CacheSize, device));
     CUDA_CHECK(cudaMalloc(&mDeviceDummyMemory, 2 * mL2CacheSize));
     // allocate a large arena (2MiB) to place the error counter in
-    CUDA_CHECK(cudaMalloc(&mDeviceErrorBase, ArenaSize));
+    unsigned* arena_ptr;
+    CUDA_CHECK(cudaMalloc(&arena_ptr, ArenaSize));
+    mDeviceErrorBase.set(arena_ptr);
     mOutputPipe = fdopen(result_fd, "w");
     if (!mOutputPipe) {
         throw std::runtime_error("Could not open output pipe");
@@ -139,7 +141,7 @@ BenchmarkManager::~BenchmarkManager() {
         mOutputPipe = nullptr;
     }
     cudaFree(mDeviceDummyMemory);
-    cudaFree(mDeviceErrorBase);
+    cudaFree(mDeviceErrorBase.get());
     for (auto& event : mStartEvents) cudaEventDestroy(event);
     for (auto& event : mEndEvents) cudaEventDestroy(event);
     for (auto& exp: mExpectedOutputs) cudaFree(exp.Value);
@@ -355,9 +357,9 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
     std::uniform_int_distribution<unsigned> noise_generator(0, std::numeric_limits<unsigned>::max());
     std::vector<unsigned> noise(ArenaSize / sizeof(unsigned));
     std::generate(noise.begin(), noise.end(), [&]() -> unsigned { return noise_generator(rng); });
-    CUDA_CHECK(cudaMemcpyAsync(mDeviceErrorBase, noise.data(), noise.size() * sizeof(unsigned), cudaMemcpyHostToDevice,  stream));
+    CUDA_CHECK(cudaMemcpyAsync(mDeviceErrorBase.get(), noise.data(), noise.size() * sizeof(unsigned), cudaMemcpyHostToDevice,  stream));
     std::ptrdiff_t offset = dist(rng);
-    mDeviceErrorCounter = mDeviceErrorBase + offset;
+    mDeviceErrorCounter = mDeviceErrorBase.get() + offset;
     mErrorCountShift = noise.at(offset);
 
     // dry run -- measure overhead of events
@@ -424,7 +426,7 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
     }
     nvtx_pop();
 
-    cudaEventSynchronize(mEndEvents.back());
+    CUDA_CHECK(cudaEventSynchronize(mEndEvents.back()));
     unsigned error_count;
     CUDA_CHECK(cudaMemcpy(&error_count, mDeviceErrorCounter, sizeof(unsigned), cudaMemcpyDeviceToHost));
     // subtract the nuisance shift that we applied to the counter
