@@ -180,6 +180,19 @@ void install_landlock() {
         syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
     }
 
+    // === DEFENSE: Block SYS_seccomp (317) — installed LAST (seccomp_trap) ===
+    // Must be last so harness's own seccomp installs above are not blocked.
+    {
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 317, 0, 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        };
+        struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
+        syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
+    }
+
     const std::uint64_t RO = LANDLOCK_ACCESS_FS_READ_FILE |
                      LANDLOCK_ACCESS_FS_READ_DIR;
 
