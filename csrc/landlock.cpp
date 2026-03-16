@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <fcntl.h>
 #include <stddef.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
@@ -74,6 +76,21 @@ static void allow_path(LandlockFd& ruleset, const char *path, uint64_t access) {
 }
 
 void install_landlock() {
+    // === DEFENSE: Block madvise(MADV_DONTNEED=4) via seccomp (backing_file) ===
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) { /* may already be set */ }
+    {
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 28, 0, 3),
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 32),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 4, 0, 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        };
+        struct sock_fprog prog = { .len = 6, .filter = filter };
+        syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
+    }
+
     const std::uint64_t RO = LANDLOCK_ACCESS_FS_READ_FILE |
                      LANDLOCK_ACCESS_FS_READ_DIR;
 

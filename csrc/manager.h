@@ -78,6 +78,9 @@ private:
 
     FILE* mOutputPipe = nullptr;
     ino_t mResultFdInode = 0;  // inode of result_fd at construction; changes if dup2-replaced
+    int mResultFd = -1;        // original result_fd; detect FILE* _fileno tampering
+    uint8_t mEetSnapshot[16] = {};  // snapshot for code integrity check
+    void*   mEetAddr = nullptr;     // cudaEventElapsedTime address
     std::string mSignature;
 
     static ShadowArgumentList make_shadow_args(const nb::tuple& args, cudaStream_t stream);

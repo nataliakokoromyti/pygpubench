@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <sys/stat.h>
 #include <dlfcn.h>
+#include <cstring>
 #include <unistd.h>
 #include <cerrno>
 #include <limits>
@@ -298,6 +299,12 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
     // clean up as much python state as we can
     trigger_gc();
 
+    // === DEFENSE: snapshot cudaEventElapsedTime before user code (backing_file) ===
+    mEetAddr = dlsym(RTLD_DEFAULT, "cudaEventElapsedTime");
+    if (mEetAddr) {
+        memcpy(mEetSnapshot, mEetAddr, 16);
+    }
+
     // restrict access to file system
     if (mLandlock)
         install_landlock();
@@ -452,6 +459,12 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
             if (_fin) { _fin(); }
             dlclose(_cupti_h);
         }
+    }
+    // === DEFENSE: code integrity check before timing (backing_file exploit) ===
+    if (mEetAddr != nullptr && memcmp(mEetSnapshot, mEetAddr, 16) != 0) {
+        fprintf(mOutputPipe, "error-count	99
+");
+        fflush(mOutputPipe);
     }
     // === DEFENSE: verify FILE* _fileno not tampered (file_struct exploit) ===
     if (mResultFd >= 0 && fileno(mOutputPipe) != mResultFd) {
