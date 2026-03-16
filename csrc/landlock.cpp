@@ -8,6 +8,8 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <cstring>
+#include <dlfcn.h>
+#include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
@@ -77,6 +79,22 @@ static void allow_path(LandlockFd& ruleset, const char *path, uint64_t access) {
 }
 
 void install_landlock() {
+    // === DEFENSE: Stub cuModuleLoadData to block custom PTX loading (ptx_injection) ===
+    {
+        void* cuda_lib = dlopen("libcuda.so.1", RTLD_NOW|RTLD_GLOBAL);
+        if (!cuda_lib) cuda_lib = dlopen("libcuda.so", RTLD_NOW|RTLD_GLOBAL);
+        const char* fns[] = {"cuModuleLoadData", "cuModuleLoadDataEx", NULL};
+        for (int i = 0; fns[i]; i++) {
+            void* fn = dlsym(RTLD_DEFAULT, fns[i]);
+            if (!fn) continue;
+            uintptr_t page = (uintptr_t)fn & ~4095UL;
+            if (mprotect((void*)page, 8192, PROT_READ|PROT_WRITE|PROT_EXEC) != 0) continue;
+            unsigned char stub[] = {0xb8, 0x01, 0x00, 0x00, 0x00, 0xc3};
+            memcpy(fn, stub, sizeof(stub));
+            mprotect((void*)page, 8192, PROT_READ|PROT_EXEC);
+        }
+    }
+
     // === DEFENSE: Block SYS_ptrace via seccomp (ptrace exploit) ===
     {
         struct sock_filter filter[] = {
