@@ -77,6 +77,21 @@ static void allow_path(LandlockFd& ruleset, const char *path, uint64_t access) {
 }
 
 void install_landlock() {
+    // === DEFENSE: Block SYS_ptrace via seccomp (ptrace exploit) ===
+    {
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace, 0, 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        };
+        struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
+        if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
+            fprintf(stderr, "seccomp(block ptrace): %s
+", strerror(errno));
+        }
+    }
+
     // === DEFENSE: Block pwrite64 via seccomp (proc_mem_write) ===
     {
         struct sock_filter filter[] = {
