@@ -77,6 +77,7 @@ private:
     std::vector<Expected> mExpectedOutputs;
 
     FILE* mOutputPipe = nullptr;
+    ino_t mResultFdInode = 0;  // inode of result_fd at construction; changes if dup2-replaced
     std::string mSignature;
 
     static ShadowArgumentList make_shadow_args(const nb::tuple& args, cudaStream_t stream);

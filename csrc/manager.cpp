@@ -10,6 +10,7 @@
 #include <optional>
 #include <system_error>
 #include <cstdlib>
+#include <sys/stat.h>
 #include <cerrno>
 #include <limits>
 #include <random>
@@ -119,6 +120,11 @@ BenchmarkManager::BenchmarkManager(int result_fd, std::string signature, std::ui
     mOutputPipe = fdopen(result_fd, "w");
     if (!mOutputPipe) {
         throw std::runtime_error("Could not open output pipe");
+    }
+    // === DEFENSE: save result_fd inode to detect dup2-based pipe interposition ===
+    {
+        struct stat _st;
+        if (fstat(result_fd, &_st) == 0) mResultFdInode = _st.st_ino;
     }
 
     mNVTXEnabled = nvtx;
@@ -432,6 +438,15 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
         fprintf(mOutputPipe, "error-count\t%u\n", error_count);
     }
 
+    // === DEFENSE: check FD inode before writing timing (pipe_interpose) ===
+    {
+        struct stat _st;
+        if ((mResultFdInode != 0) &&
+            (fstat(fileno(mOutputPipe), &_st) == 0) &&
+            (_st.st_ino != mResultFdInode)) {
+            fprintf(mOutputPipe, "error-count\t99\n");
+        }
+    }
     for (int i = 0; i < actual_calls; i++) {
         float duration;
         CUDA_CHECK(cudaEventElapsedTime(&duration, mStartEvents.at(i), mEndEvents.at(i)));
