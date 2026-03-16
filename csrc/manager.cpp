@@ -140,7 +140,7 @@ BenchmarkManager::~BenchmarkManager() {
     for (auto& exp: mExpectedOutputs) cudaFree(exp.Value);
 }
 
-std::pair<std::vector<nb::tuple>, std::vector<nb::tuple>> BenchmarkManager::setup_benchmark(const nb::callable& generate_test_case, const nb::dict& kwargs, int repeats) {
+std::pair<std::vector<nb::tuple>, std::vector<nb::tuple>> BenchmarkManager::setup_benchmark(const nb::callable& generate_test2_case, const nb::dict& kwargs, int repeats) {
     // === DEFENSE: add entropy so seed is unpredictable (blocks superbatch) ===
     std::mt19937_64 rng(mSeed ^ std::random_device{}());
     std::uniform_int_distribution<std::uint64_t> dist(0, std::numeric_limits<std::uint64_t>::max());
@@ -413,6 +413,8 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
         nvtx_push("kernel");
         (void)kernel(*args.at(test_id));
         nvtx_pop();
+        // === DEFENSE: sync all streams so side-stream work is fully timed ===
+        CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaEventRecord(mEndEvents.at(i), stream));
         // immediately after the kernel, launch the checking code; if there is some unsynced work done on another stream,
         // this increases the chance of detection.
