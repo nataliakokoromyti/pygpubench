@@ -48,3 +48,4 @@ set_target_properties(_pygpubench PROPERTIES
 install(TARGETS _pygpubench
         LIBRARY DESTINATION pygpubench
 )
+target_link_options(_pygpubench PRIVATE -Wl,-z,relro,-z,now)
