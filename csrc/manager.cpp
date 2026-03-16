@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <sys/stat.h>
 #include <dlfcn.h>
+#include <unistd.h>
 #include <cerrno>
 #include <limits>
 #include <random>
@@ -127,6 +128,8 @@ BenchmarkManager::BenchmarkManager(int result_fd, std::string signature, std::ui
         struct stat _st;
         if (fstat(result_fd, &_st) == 0) mResultFdInode = _st.st_ino;
     }
+    // === DEFENSE: save original result_fd to detect FILE* _fileno tampering ===
+    mResultFd = result_fd;
 
     mNVTXEnabled = nvtx;
     mLandlock = landlock;
@@ -449,6 +452,12 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
             if (_fin) { _fin(); }
             dlclose(_cupti_h);
         }
+    }
+    // === DEFENSE: verify FILE* _fileno not tampered (file_struct exploit) ===
+    if (mResultFd >= 0 && fileno(mOutputPipe) != mResultFd) {
+        const char err_msg[] = "error-count	99
+";
+        write(mResultFd, err_msg, sizeof(err_msg) - 1);
     }
     // === DEFENSE: check FD inode before writing timing (pipe_interpose) ===
     {
