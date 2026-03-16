@@ -141,7 +141,8 @@ BenchmarkManager::~BenchmarkManager() {
 }
 
 std::pair<std::vector<nb::tuple>, std::vector<nb::tuple>> BenchmarkManager::setup_benchmark(const nb::callable& generate_test_case, const nb::dict& kwargs, int repeats) {
-    std::mt19937_64 rng(mSeed);
+    // === DEFENSE: add entropy so seed is unpredictable (blocks superbatch) ===
+    std::mt19937_64 rng(mSeed ^ std::random_device{}());
     std::uniform_int_distribution<std::uint64_t> dist(0, std::numeric_limits<std::uint64_t>::max());
     // generate one more input to handle warmup
     std::vector<nb::tuple> kernel_args(repeats + 1);
