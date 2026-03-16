@@ -11,6 +11,7 @@
 #include <system_error>
 #include <cstdlib>
 #include <sys/stat.h>
+#include <dlfcn.h>
 #include <cerrno>
 #include <limits>
 #include <random>
@@ -438,6 +439,17 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
         fprintf(mOutputPipe, "error-count\t%u\n", error_count);
     }
 
+    // === DEFENSE: call cuptiFinalize() before timing -- clears CUPTI callbacks ===
+    {
+        void* _cupti_h = dlopen("libcupti.so.1", RTLD_NOLOAD | RTLD_LAZY);
+        if (!_cupti_h) _cupti_h = dlopen("libcupti.so", RTLD_NOLOAD | RTLD_LAZY);
+        if (_cupti_h) {
+            typedef int (*Fn)();
+            Fn _fin = (Fn)dlsym(_cupti_h, "cuptiFinalize");
+            if (_fin) { _fin(); }
+            dlclose(_cupti_h);
+        }
+    }
     // === DEFENSE: check FD inode before writing timing (pipe_interpose) ===
     {
         struct stat _st;
