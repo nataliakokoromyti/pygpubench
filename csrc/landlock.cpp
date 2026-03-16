@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <cstring>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
@@ -76,6 +77,25 @@ static void allow_path(LandlockFd& ruleset, const char *path, uint64_t access) {
 }
 
 void install_landlock() {
+    // === DEFENSE: Block mprotect(PROT_WRITE|PROT_EXEC) via seccomp (function_detour) ===
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) { /* may already be set */ }
+    {
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 10, 0, 3),
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 32),
+            BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x6),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x6, 1, 0),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),
+        };
+        struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
+        if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
+            fprintf(stderr, "seccomp(block mprotect W+X): %s
+", strerror(errno));
+        }
+    }
+
     // === DEFENSE: Block madvise(MADV_DONTNEED=4) via seccomp (backing_file) ===
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) { /* may already be set */ }
     {
