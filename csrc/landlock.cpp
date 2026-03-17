@@ -95,6 +95,9 @@ void install_landlock() {
         }
     }
 
+    // Required for all seccomp filters below
+    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+
     // === DEFENSE: Block SYS_ptrace via seccomp (ptrace exploit) ===
     {
         struct sock_filter filter[] = {
