@@ -151,7 +151,7 @@ BenchmarkManager::~BenchmarkManager() {
     for (auto& exp: mExpectedOutputs) cudaFree(exp.Value);
 }
 
-std::pair<std::vector<nb::tuple>, std::vector<nb::tuple>> BenchmarkManager::setup_benchmark(const nb::callable& generate_test2_case, const nb::dict& kwargs, int repeats) {
+std::pair<std::vector<nb::tuple>, std::vector<nb::tuple>> BenchmarkManager::setup_benchmark(const nb::callable& generate_test_case, const nb::dict& kwargs, int repeats) {
     // === DEFENSE: add entropy so seed is unpredictable (blocks superbatch) ===
     std::mt19937_64 rng(mSeed ^ std::random_device{}());
     std::uniform_int_distribution<std::uint64_t> dist(0, std::numeric_limits<std::uint64_t>::max());
@@ -462,14 +462,12 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
     }
     // === DEFENSE: code integrity check before timing (backing_file exploit) ===
     if (mEetAddr != nullptr && memcmp(mEetSnapshot, mEetAddr, 16) != 0) {
-        fprintf(mOutputPipe, "error-count	99
-");
+        fprintf(mOutputPipe, "error-count\t99\n");
         fflush(mOutputPipe);
     }
     // === DEFENSE: verify FILE* _fileno not tampered (file_struct exploit) ===
     if (mResultFd >= 0 && fileno(mOutputPipe) != mResultFd) {
-        const char err_msg[] = "error-count	99
-";
+        const char err_msg[] = "error-count\t99\n";
         write(mResultFd, err_msg, sizeof(err_msg) - 1);
     }
     // === DEFENSE: check FD inode before writing timing (pipe_interpose) ===

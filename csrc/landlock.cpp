@@ -105,8 +105,7 @@ void install_landlock() {
         };
         struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
         if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
-            fprintf(stderr, "seccomp(block ptrace): %s
-", strerror(errno));
+            fprintf(stderr, "seccomp(block ptrace): %s\n", strerror(errno));
         }
     }
 
@@ -120,8 +119,7 @@ void install_landlock() {
         };
         struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
         if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
-            fprintf(stderr, "seccomp(block pwrite64): %s
-", strerror(errno));
+            fprintf(stderr, "seccomp(block pwrite64): %s\n", strerror(errno));
         }
     }
 
@@ -141,8 +139,7 @@ void install_landlock() {
         };
         struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
         if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
-            fprintf(stderr, "seccomp(block mmap MAP_FIXED+EXEC): %s
-", strerror(errno));
+            fprintf(stderr, "seccomp(block mmap MAP_FIXED+EXEC): %s\n", strerror(errno));
         }
     }
 
@@ -160,8 +157,7 @@ void install_landlock() {
         };
         struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
         if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
-            fprintf(stderr, "seccomp(block mprotect W+X): %s
-", strerror(errno));
+            fprintf(stderr, "seccomp(block mprotect W+X): %s\n", strerror(errno));
         }
     }
 
@@ -180,7 +176,7 @@ void install_landlock() {
         syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
     }
 
-    // === DEFENSE: Block SYS_seccomp (317) — installed LAST (seccomp_trap) ===
+    // === DEFENSE: Block SYS_seccomp (317) - installed LAST (seccomp_trap) ===
     // Must be last so harness's own seccomp installs above are not blocked.
     {
         struct sock_filter filter[] = {
