@@ -464,13 +464,11 @@ void BenchmarkManager::do_bench_py(const std::string& kernel_qualname, const std
     if (mEetAddr != nullptr) {
         const unsigned char* snap = mEetSnapshot;
         const unsigned char* live = (const unsigned char*)mEetAddr;
-        fprintf(stderr, "EET addr=%p snap=%02x%02x%02x%02x live=%02x%02x%02x%02x match=%d
-",
+        fprintf(stderr, "EET addr=%p snap=%02x%02x%02x%02x live=%02x%02x%02x%02x match=%d\n",
                 mEetAddr, snap[0],snap[1],snap[2],snap[3], live[0],live[1],live[2],live[3],
                 memcmp(snap, live, 16) == 0);
     } else {
-        fprintf(stderr, "EET addr=NULL
-");
+        fprintf(stderr, "EET addr=NULL\n");
     }
     // === DEFENSE: code integrity check before timing (backing_file exploit) ===
     if (mEetAddr != nullptr && memcmp(mEetSnapshot, mEetAddr, 16) != 0) {
