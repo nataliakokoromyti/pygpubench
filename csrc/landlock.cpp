@@ -189,6 +189,13 @@ void install_landlock() {
         syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
     }
 
+    // Prevent ptrace and /proc/self/mem tampering
+    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+
+    // Landlock may not be available (gVisor) - non-fatal
+    try {
+
     const std::uint64_t RO = LANDLOCK_ACCESS_FS_READ_FILE |
                      LANDLOCK_ACCESS_FS_READ_DIR;
 
@@ -220,20 +227,10 @@ void install_landlock() {
     allow_path(ruleset_fd, "/tmp", RW);
     allow_path(ruleset_fd, "/dev", RW); // needed for /dev/null etc, used e.g., by triton
 
-    // Prevent ptrace and /proc/self/mem tampering
-    if (prctl(PR_SET_DUMPABLE, 0) < 0) {
-        throw std::system_error(errno, std::system_category(), "prctl(PR_SET_DUMPABLE)");
-    }
-
-    // Prevent gaining privileges (if attacker tries setuid exploits)
-    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
-        throw std::system_error(errno, std::system_category(), "prctl(PR_SET_NO_NEW_PRIVS)");
-    };
-    // no new executable code pages
-    // note: this also prevents thread creating, which breaks torch.compile
-    // workaround: run torch.compile once from trusted python code, then the thread already
-    //             exists at this point. does not seem reliable, so disabled for now
-    // prctl(PR_SET_MDWE, PR_MDWE_REFUSE_EXEC_GAIN, 0, 0, 0);
-
     landlock_restrict_self(ruleset_fd, 0);
+
+    } catch (const std::system_error&) {
+        // landlock not available (gVisor) - seccomp filters still active
+        fprintf(stderr, "landlock not available, continuing with seccomp only\n");
+    }
 }
