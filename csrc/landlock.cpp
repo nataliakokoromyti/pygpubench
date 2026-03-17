@@ -208,8 +208,8 @@ void install_landlock() {
             BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 40),            // load flags (args[3])
             BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x2),          // AND MREMAP_FIXED(0x2)
             BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x2, 0, 1),   // set? deny, else allow
-            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),      // ALLOW
             BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),  // DENY (EPERM)
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),       // ALLOW
         };
         struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
         if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
