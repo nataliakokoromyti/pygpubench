@@ -198,6 +198,25 @@ void install_landlock() {
         syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
     }
 
+    // === DEFENSE: Block mremap(MREMAP_FIXED) via seccomp (mremap_rwx) ===
+    // Prevents replacing code pages via mremap with MREMAP_FIXED flag.
+    // mremap syscall nr=25, flags=args[3] at offset 40, MREMAP_FIXED=0x2
+    {
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0),             // load syscall nr
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 25, 0, 4),    // mremap(25)? no->allow
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 40),            // load flags (args[3])
+            BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x2),          // AND MREMAP_FIXED(0x2)
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x2, 0, 1),   // set? deny, else allow
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),      // ALLOW
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),  // DENY (EPERM)
+        };
+        struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
+        if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
+            fprintf(stderr, "seccomp(block mremap MREMAP_FIXED): %s\n", strerror(errno));
+        }
+    }
+
     // === DEFENSE: Block SYS_seccomp (317) - installed LAST (seccomp_trap) ===
     // Must be last so harness's own seccomp installs above are not blocked.
     {
