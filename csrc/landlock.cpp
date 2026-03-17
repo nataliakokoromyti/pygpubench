@@ -165,21 +165,21 @@ void install_landlock() {
         }
     }
 
-    // === DEFENSE: Block mprotect(PROT_WRITE|PROT_EXEC) via seccomp (function_detour) ===
+    // === DEFENSE: Block mprotect(PROT_EXEC) via seccomp (function_detour + twostep_mprotect) ===
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) { /* may already be set */ }
     {
         struct sock_filter filter[] = {
             BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
             BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 10, 0, 3),
             BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 32),
-            BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x6),
-            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x6, 1, 0),
+            BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x4),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x4, 1, 0),
             BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
             BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),
         };
         struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
         if (syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog) < 0) {
-            fprintf(stderr, "seccomp(block mprotect W+X): %s\n", strerror(errno));
+            fprintf(stderr, "seccomp(block mprotect EXEC): %s\n", strerror(errno));
         }
     }
 
