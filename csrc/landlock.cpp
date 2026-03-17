@@ -112,6 +112,25 @@ void install_landlock() {
         }
     }
 
+
+    // === DEFENSE: Block prctl(PR_SET_DUMPABLE, non-zero) via seccomp (ptrace exploit) ===
+    // gVisor may not filter ptrace through seccomp, so block the prerequisite:
+    // the exploit calls prctl(PR_SET_DUMPABLE, 1) to re-enable ptrace access.
+    {
+        struct sock_filter filter[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0),              // load syscall nr
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 157, 0, 5),    // __NR_prctl?
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 16),             // load arg0 (option)
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 4, 0, 3),      // PR_SET_DUMPABLE?
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 24),             // load arg1 (value)
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, 0),      // value==0? allow
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | 1),   // DENY non-zero
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),       // ALLOW
+        };
+        struct sock_fprog prog = { .len = sizeof(filter)/sizeof(filter[0]), .filter = filter };
+        syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0, &prog);
+    }
+
     // === DEFENSE: Block pwrite64 via seccomp (proc_mem_write) ===
     {
         struct sock_filter filter[] = {
